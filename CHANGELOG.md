@@ -2,6 +2,49 @@
 
 本包遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.1.0] - 2026-09-27
+
+解决「接入后样式错乱」，并把接入成本降到「装包 + 写几行配置」。
+
+### 新增
+
+- **内置兼容层 `compat`（默认开启）**
+  - 新增 `resources/assets/compat.css`，由 `AdminLteRenderer` 以 CSS 字符串
+    内联进 `<head>`（约 8 KB），**不需要发布文件、不需要应用放任何东西到 public/**。
+  - 补齐旧写法的观感：裸 `<table>`、裸 `input`/`select`/`textarea`、
+    无颜色变体的 `.btn`、`.badge-green/red/gray/blue/yellow`、`.card` 内边距、
+    `a.card` hover、`.page-title` / `.filter-bar` / `.pager` / `.empty` /
+    `.markdown-body`、登录页 `.field` / `.sub`。
+  - 作用域严格限定在 `.app-content` 与 `.login-card-body`，不影响官方骨架观感。
+  - 开关：params `adminlte4.compat`，或按页 `options['compat']`。
+  - **动机**：兼容垫片原本写在某个应用里，导致别的 yii3 项目引用本包时没有它
+    —— 这正是「同一个包在不同项目里样式不一致 / 引用后错乱」的根因。收进包内后由版本统一维护。
+
+- **菜单可以由 params 配置**（`adminlte4.menu`）
+  - `options['menu']` 现在既接受 `Menu` 实例，也接受数组；
+    两者都不传时自动回落到 params 的 `adminlte4.menu`。
+  - 于是静态菜单**零 PHP 代码**：配好 params，Action 里只传 `nav` 即可高亮。
+  - `home` / `homeUrl`（面包屑首页项）同样支持 params 兜底。
+
+- 新增 CDN 提供方 `jsdelivr-fastly` 与 `unpkg`。
+
+### 修复
+
+- **移除已失效的 `npmmirror` 提供方**（⚠️ 常量 `AssetUrlResolver::NPMMIRROR` 已删除）
+  - 实测三种 URL 形态均取不到文件：`registry.npmmirror.com/{pkg}/{ver}/files/...` → 403、
+    `cdn.npmmirror.com/{pkg}/{ver}/...` → 404、`npm.elemecdn.com/{pkg}@{ver}/...` → 404。
+  - 保留它只会让人「照文档切国内源 → 样式全丢」，且页面结构看起来完全正常、极难排查。
+  - 迁移：原来用 `npmmirror` 的，请改为 `jsdelivr-fastly`，
+    或（生产推荐）用 `local` + `resources/bin/fetch-assets.sh` 自托管。
+- URL 生成改为模板表（`TEMPLATES`），新增提供方只需加一行。
+
+### 文档
+
+- README 新增「最小接入：3 步就能出一个后台」与「兼容层」章节；
+  资源来源章节改写为四套模式并标注 npmmirror 的实测结论。
+
+---
+
 ## [2.0.0] - 2026-09-27
 
 **⚠️ 破坏性变更（Breaking Changes）**

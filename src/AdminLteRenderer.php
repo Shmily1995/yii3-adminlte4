@@ -74,6 +74,16 @@ use Yiisoft\View\WebView;
 final class AdminLteRenderer
 {
     /**
+     * 兼容层 CSS 在视图里的注册键。固定字符串，保证「同请求多次渲染只输出一份」。
+     */
+    private const COMPAT_CSS_KEY = 'adminlte4/compat';
+
+    /**
+     * 兼容层 CSS 内容的进程内缓存。
+     */
+    private static ?string $compatCssCache = null;
+
+    /**
      * @param array<string,mixed> $config params 里的 'adminlte4' 参数组
      */
     public function __construct(
@@ -172,6 +182,61 @@ final class AdminLteRenderer
                 $this->view->registerCssFile($url);
             }
         }
+
+        // ---------- 兼容层（旧模板迁移垫片）----------
+        $this->registerCompat($options);
+    }
+
+    /**
+     * 注入包内兼容层 CSS。
+     *
+     * 【为什么它是包的一部分】
+     *   「页面模板用的是自研/AdminLTE 3 时代写法」是迁移期的普遍状态：
+     *   裸 <table>、裸 <input>、.badge-*、.card 当白底容器……
+     *   这些在 Bootstrap 5 下会掉样式，表现为「骨架换了、内容区还是旧的」。
+     *
+     *   如果这份垫片写在某个应用里，别的 yii3 项目引用本包就**没有它**，
+     *   于是「同一个包，在不同项目里观感不一致」——正是「引用后样式错乱」的来源。
+     *   收进包内后由包的版本统一维护，谁引用都一致。
+     *
+     * 【为什么用 CSS 字符串内联，而不是发布一个文件】
+     *   走文件就要求应用把包内资源「发布（publish）」到 web 可访问目录，
+     *   涉及 basePath/baseUrl/目录权限，是接入阶段最容易卡住的一步。
+     *   本层只有几 KB，内联进 <head> 可换来「零配置可用」。
+     *   （生产若要缓存，可把内容复制到自己站点并用 extraCss 引用。）
+     *
+     * 【开关】params 的 adminlte4.compat（默认 true）。
+     *   全新项目全部用 Bootstrap 5 类名时，可关掉省几 KB。
+     */
+    private function registerCompat(array $options): void
+    {
+        $enabled = (bool) ($options['compat'] ?? $this->config['compat'] ?? true);
+
+        if (!$enabled) {
+            return;
+        }
+
+        $css = $this->compatCss();
+
+        if ($css !== '') {
+            // key 用固定字符串：同一次请求里渲染多次也只输出一份
+            $this->view->addCssStrings([self::COMPAT_CSS_KEY => $css]);
+        }
+    }
+
+    /**
+     * 读取包内兼容层 CSS（进程内缓存，避免重复 IO）。
+     */
+    private function compatCss(): string
+    {
+        if (self::$compatCssCache !== null) {
+            return self::$compatCssCache;
+        }
+
+        $file = dirname(__DIR__) . '/resources/assets/compat.css';
+        $css = is_file($file) ? (string) file_get_contents($file) : '';
+
+        return self::$compatCssCache = $css;
     }
 
     /**
@@ -189,10 +254,13 @@ final class AdminLteRenderer
         $title = (string) ($options['title'] ?? '');
         $nav = isset($options['nav']) ? (string) $options['nav'] : null;
 
-        $menuOption = $options['menu'] ?? null;
-        $menu = $menuOption instanceof Menu
-            ? $menuOption->withActiveItem($nav, isset($options['path']) ? (string) $options['path'] : null)
-            : new Menu();
+        // 菜单可以来自三处，优先级从高到低：
+        //   ① 每次 render 的 options['menu']（Menu 实例或数组）—— 动态菜单（按权限裁剪）用这个
+        //   ② params 的 adminlte4.menu（数组）—— 静态菜单「只写配置不写代码」用这个
+        //   ③ 都没有 → 空菜单
+        // ②的存在正是「composer require + 写几行 params 就能出后台」的关键：
+        //   应用不必为了渲染菜单而专门写一个 PHP 适配层。
+        $menu = $this->resolveMenu($options['menu'] ?? $this->config['menu'] ?? null, $nav, $options);
 
         $breadcrumbs = (array) ($options['breadcrumbs'] ?? []);
         $flash = $options['flash'] ?? null;
@@ -221,8 +289,8 @@ final class AdminLteRenderer
             'breadcrumbs' => $breadcrumbs,
             'breadcrumbWidget' => new Breadcrumbs(
                 $breadcrumbs,
-                homeLabel: (string) ($options['home'] ?? ''),
-                homeUrl: (string) ($options['homeUrl'] ?? '/'),
+                homeLabel: (string) ($options['home'] ?? $this->config['home'] ?? ''),
+                homeUrl: (string) ($options['homeUrl'] ?? $this->config['homeUrl'] ?? '/'),
                 floatEnd: true,
             ),
             'flash' => $flash,
@@ -234,6 +302,32 @@ final class AdminLteRenderer
             'bodyClass' => (string) ($options['bodyClass'] ?? ''),
             'options' => (array) ($this->config['options'] ?? []),
         ];
+    }
+
+    /**
+     * 把「Menu 实例 / 菜单数组 / null」统一解析成已标记高亮的 Menu。
+     *
+     * @param mixed                $menuOption Menu 实例、菜单数组或 null
+     * @param string|null          $nav        当前高亮的菜单 key
+     * @param array<string,mixed>  $options
+     */
+    private function resolveMenu(mixed $menuOption, ?string $nav, array $options): Menu
+    {
+        if ($menuOption instanceof Menu) {
+            return $menuOption->withActiveItem(
+                $nav,
+                isset($options['path']) ? (string) $options['path'] : null,
+            );
+        }
+
+        if (is_array($menuOption) && $menuOption !== []) {
+            return Menu::fromArray($menuOption)->withActiveItem(
+                $nav,
+                isset($options['path']) ? (string) $options['path'] : null,
+            );
+        }
+
+        return new Menu();
     }
 
     /**

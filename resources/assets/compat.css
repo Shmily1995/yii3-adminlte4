@@ -1,0 +1,307 @@
+/* ============================================================
+ *  AdminLTE 4 · 兼容层（compat）—— 包内自带，params 开关控制
+ * ============================================================
+ *
+ * 【它解决什么】
+ *   很多项目接入 AdminLTE 4 之前，页面模板写的是「自研 / AdminLTE 3 时代」
+ *   的 HTML：裸 <table>、裸 <input>、.badge-*、.card 当白底容器用……
+ *   这些在 Bootstrap 5 + AdminLTE 4 下会**掉一部分样式**，
+ *   表现为「骨架换了、内容区还是旧的/难看」——也就是常说的「样式错乱」。
+ *
+ *   本文件把这些旧写法**补齐**成 Bootstrap 5 的观感，
+ *   使「装了包但页面模板还没改」的项目也能立刻正常显示。
+ *
+ * 【为什么做成包内能力，而不是每个项目自己写一份垫片】
+ *   垫片写在某个应用里 = 别的 yii3 项目引用本包时**没有这份样式**，
+ *   于是「同一个包，在不同项目里观感不一样」。
+ *   收进包内后：谁引用都一致，且由包的版本统一维护。
+ *
+ * 【作用域约定（重要）】
+ *   · 内容页相关 → 一律收在 `.app-content` 下，**不污染**登录页与布局壳；
+ *   · 登录表单相关 → 收在 `.login-card-body` 下，避免与 Bootstrap 冲突。
+ *   这样即使模板里混用，也不会影响侧边栏/顶栏的官方观感。
+ *
+ * 【加载顺序】
+ *   本层在 adminlte.min.css **之后**注入（见 AdminLteRenderer::registerAssets），
+ *   因此可以覆盖同名规则。
+ */
+
+/* ============================================================
+ *  1. 卡片：旧模板把 .card 当「带内边距的白底容器」
+ *     Bootstrap 的 .card 只有边框/圆角/背景，没有 padding。
+ * ============================================================ */
+.app-content > .container-fluid > .card,
+.app-content .card {
+    margin-bottom: 1rem;
+}
+.app-content > .container-fluid .card {
+    padding: 1rem;
+}
+/* 度量卡/链接卡：整块可点时给 hover 反馈 */
+.app-content a.card {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+.app-content a.card:hover {
+    border-color: #adb5bd;
+    box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075);
+}
+
+/* ============================================================
+ *  2. 徽章：旧 .badge-* 是「软色徽章」（浅底 + 细边框 + 深字）
+ *     Bootstrap 5 的 .badge 是实心小圆标，视觉差异较大。
+ * ============================================================ */
+.app-content .badge,
+.login-card-body .badge {
+    border-radius: 10px;
+    line-height: 18px;
+    white-space: nowrap;
+    vertical-align: middle;
+    font-weight: 500;
+    padding: 2px 8px;
+}
+.app-content .badge-green,
+.login-card-body .badge-green {
+    background: #dafbe1;
+    border: 1px solid #aceebb;
+    color: #116329;
+}
+.app-content .badge-red,
+.login-card-body .badge-red {
+    background: #ffebe9;
+    border: 1px solid #ffcecb;
+    color: #a40e26;
+}
+.app-content .badge-gray,
+.login-card-body .badge-gray {
+    background: #eaeef2;
+    border: 1px solid #d0d7de;
+    color: #57606a;
+}
+.app-content .badge-blue,
+.login-card-body .badge-blue {
+    background: #ddf4ff;
+    border: 1px solid #b6e3ff;
+    color: #0a3069;
+}
+.app-content .badge-yellow,
+.login-card-body .badge-yellow {
+    background: #fff8c5;
+    border: 1px solid #f0e17a;
+    color: #7d4e00;
+}
+
+/* ============================================================
+ *  3. 表格：旧模板用裸 <table>（未加 Bootstrap 的 .table）
+ * ============================================================ */
+.app-content table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.app-content th,
+.app-content td {
+    padding: 9px 10px;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+    vertical-align: top;
+}
+.app-content th {
+    background: #f8f9fa;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.app-content tr:hover td {
+    background: #f8f9fa;
+}
+
+/* ============================================================
+ *  4. 表单控件：旧模板用裸 input / select / textarea
+ *     （Bootstrap 5 需要 .form-control / .form-select 才有样式）
+ * ============================================================ */
+.app-content input[type="text"],
+.app-content input[type="search"],
+.app-content input[type="email"],
+.app-content input[type="password"],
+.app-content input[type="number"],
+.app-content input[type="date"],
+.app-content select,
+.app-content textarea {
+    padding: 5px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.5;
+    background: #fff;
+    color: #212529;
+    max-width: 100%;
+}
+.app-content textarea {
+    width: 100%;
+    min-height: 90px;
+}
+.app-content input[type="text"]:focus,
+.app-content input[type="search"]:focus,
+.app-content input[type="email"]:focus,
+.app-content input[type="password"]:focus,
+.app-content input[type="number"]:focus,
+.app-content input[type="date"]:focus,
+.app-content select:focus,
+.app-content textarea:focus {
+    outline: 2px solid #0969da;
+    outline-offset: -1px;
+    border-color: #0969da;
+}
+
+/* ============================================================
+ *  5. 按钮：旧模板常写裸 .btn（Bootstrap 里无颜色变体 = 近乎透明）
+ *     这里兜底成「描边次要按钮」的观感，保证可辨识。
+ * ============================================================ */
+.app-content .btn:not([class*="btn-"]) {
+    border: 1px solid #ced4da;
+    background: #fff;
+    color: #212529;
+}
+.app-content .btn:not([class*="btn-"]):hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+/* 小按钮行高（表格里的操作列常用） */
+.app-content .btn-sm {
+    padding: 2px 9px;
+    font-size: 12.5px;
+}
+
+/* ============================================================
+ *  6. 其它旧类目
+ * ============================================================ */
+/* 页面标题（旧 .page-title；布局 header 已有标题时不应重复，见模板说明） */
+.app-content .page-title {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 0 0 1rem;
+}
+/* 筛选条 */
+.app-content .filter-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+/* 分页 */
+.app-content .pager {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 16px;
+}
+.app-content .pager .cur {
+    padding: 4px 10px;
+    font-size: 13px;
+    color: #6c757d;
+}
+/* 空状态 */
+.app-content .empty {
+    text-align: center;
+    color: #6c757d;
+    padding: 40px 0;
+}
+
+/* ============================================================
+ *  7. Markdown 正文（渲染器输出的 .markdown-body）
+ * ============================================================ */
+.app-content .markdown-body {
+    max-width: 780px;
+}
+.app-content .markdown-body h1 {
+    font-size: 22px;
+    border-bottom: 1px solid #d8dee4;
+    padding-bottom: 6px;
+}
+.app-content .markdown-body h2 {
+    font-size: 18px;
+    margin-top: 22px;
+}
+.app-content .markdown-body h3 {
+    font-size: 15px;
+}
+.app-content .markdown-body pre {
+    background: #f6f8fa;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+.app-content .markdown-body code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.app-content .markdown-body p code {
+    background: #eef1f4;
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+.app-content .markdown-body blockquote {
+    margin: 0;
+    padding: 2px 14px;
+    color: #57606a;
+    border-left: 4px solid #d0d7de;
+    background: #f6f8fa;
+}
+.app-content .markdown-body img {
+    max-width: 100%;
+}
+
+/* ============================================================
+ *  8. 登录页（旧 .field / .sub / 裸 .btn-primary）
+ * ============================================================ */
+.login-card-body h1 {
+    font-size: 19px;
+    margin: 0 0 6px;
+}
+.login-card-body .sub {
+    color: #6c757d;
+    font-size: 13px;
+    margin: 0 0 20px;
+}
+.login-card-body .field {
+    margin-bottom: 14px;
+}
+.login-card-body .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+.login-card-body .field input {
+    width: 100%;
+    padding: 8px 11px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+    color: #212529;
+}
+.login-card-body .field input:focus {
+    outline: 2px solid #0969da;
+    outline-offset: -1px;
+    border-color: #0969da;
+}
+/* 旧模板的登录按钮是裸 .btn-primary（没有 .btn 前缀），单独补全 */
+.login-card-body .btn-primary {
+    display: block;
+    width: 100%;
+    padding: 9px;
+    border: 1px solid #1f883d;
+    background: #1f883d;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+}
+.login-card-body .btn-primary:hover {
+    background: #1a7f37;
+}

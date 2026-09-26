@@ -13,25 +13,52 @@ use InvalidArgumentException;
  * ============================================================
  *
  * 【为什么要有这一层】
- *   同一个文件在三种部署环境下的 URL 完全不同：
- *     开发/演示 ：https://cdn.jsdelivr.net/npm/admin-lte@4.9.1/dist/css/adminlte.min.css
- *     国内生产  ：https://registry.npmmirror.com/admin-lte/4.9.1/files/dist/css/adminlte.min.css
- *     完全自托管：/assets/vendor/admin-lte/dist/css/adminlte.min.css
+ *   同一个文件在不同部署环境下的 URL 完全不同：
+ *     默认       ：https://cdn.jsdelivr.net/npm/admin-lte@4.9.1/dist/css/adminlte.min.css
+ *     fastly 节点：https://fastly.jsdelivr.net/npm/admin-lte@4.9.1/dist/css/adminlte.min.css
+ *     unpkg      ：https://unpkg.com/admin-lte@4.9.1/dist/css/adminlte.min.css
+ *     完全自托管 ：/assets/vendor/admin-lte/dist/css/adminlte.min.css
  *   如果把 URL 写死在各个 AssetBundle 里，换环境就要改代码。
  *   把差异收敛到这一个类 + 一个 params 开关，换环境只改配置。
  *
  * 【关于国内可用性的一点提醒】
  *   jsdelivr 在国内时有波动（DNS 污染 / 被限速），表现为
  *   「页面结构正常但样式全丢，且加载要卡十几秒」。
- *   面向国内用户的后台建议直接用 npmmirror 或 local。
+ *   面向国内用户的**生产环境建议用 local**（resources/bin/fetch-assets.sh
+ *   一键把固定版本抓到自己站点），彻底不依赖外网。
  */
 final class AssetUrlResolver
 {
     public const JSDELIVR = 'jsdelivr';
-    public const NPMMIRROR = 'npmmirror';
+    public const JSDELIVR_FASTLY = 'jsdelivr-fastly';
+    public const UNPKG = 'unpkg';
     public const LOCAL = 'local';
 
-    private const PROVIDERS = [self::JSDELIVR, self::NPMMIRROR, self::LOCAL];
+    private const PROVIDERS = [self::JSDELIVR, self::JSDELIVR_FASTLY, self::UNPKG, self::LOCAL];
+
+    /**
+     * 各提供方的 URL 模板（占位符 {pkg} / {ver} / {path}）。
+     *
+     * 【为什么用模板表，而不是一堆 if】
+     *   加一个源只需要加一行，且「有哪些源」一眼可枚举。
+     *
+     * ⚠️【实测结论（2026-09）—— 曾经的 npmmirror 已被移除】
+     *   · registry.npmmirror.com/{pkg}/{ver}/files/{path} → **403**
+     *   · cdn.npmmirror.com/{pkg}/{ver}/{path}            → **404**
+     *   · npm.elemecdn.com/{pkg}@{ver}/{path}             → **404**
+     *   三者当时都取不到 admin-lte 4.9.1 的 CSS。
+     *   保留一个「配了就必然 403」的源，代价是**用户照文档切了国内源之后
+     *   样式全丢**，且从页面上看不出是 CDN 问题（HTML 结构完全正常）。
+     *   所以直接移除，并把国内场景引导到 local 自托管。
+     *
+     *   另：cdn.staticfile.org 可用，但它的路径形态与 npm 不一致
+     *   （/{lib}/{ver}/{path}），且各包收录情况不一，不适合做成通用模板。
+     */
+    private const TEMPLATES = [
+        self::JSDELIVR => 'https://cdn.jsdelivr.net/npm/{pkg}@{ver}/{path}',
+        self::JSDELIVR_FASTLY => 'https://fastly.jsdelivr.net/npm/{pkg}@{ver}/{path}',
+        self::UNPKG => 'https://unpkg.com/{pkg}@{ver}/{path}',
+    ];
 
     /**
      * @param string               $provider     资源提供方，见上面的常量
@@ -102,8 +129,16 @@ final class AssetUrlResolver
 
         $version ??= $this->version($package);
 
-        return $this->provider === self::NPMMIRROR
-            ? sprintf('https://registry.npmmirror.com/%s/%s/files/%s', $package, $version, $path)
-            : sprintf('https://cdn.jsdelivr.net/npm/%s@%s/%s', $package, $version, $path);
+        $template = self::TEMPLATES[$this->provider]
+            ?? throw new InvalidArgumentException(sprintf(
+                '资源提供方 "%s" 没有配置 URL 模板。',
+                $this->provider,
+            ));
+
+        return str_replace(
+            ['{pkg}', '{ver}', '{path}'],
+            [$package, $version, $path],
+            $template,
+        );
     }
 }

@@ -112,7 +112,56 @@ grep -A3 "'interview-treasure/yii3-adminlte4'" config/.merge-plan.php
 
 ---
 
-## 快速开始
+## 最小接入：3 步就能出一个后台
+
+**第 1 步** 装包：
+
+```bash
+composer require interview-treasure/yii3-adminlte4
+```
+
+**第 2 步** 写配置（`config/params.php`）—— **站点名和菜单都在这里，不用写 PHP**：
+
+```php
+return [
+    'adminlte4' => [
+        'brand' => '我的后台',
+        'menu'  => [
+            ['label' => '概览', 'icon' => 'speedometer2', 'url' => '/admin',           'key' => 'dashboard'],
+            ['label' => '用户', 'icon' => 'people',       'url' => '/admin/users',     'key' => 'users'],
+            ['label' => '题库', 'icon' => 'list-check',   'url' => '/admin/questions', 'key' => 'questions'],
+        ],
+    ],
+];
+```
+
+**第 3 步** 在 Action 里渲染一行：
+
+```php
+use AdminLte4\AdminLteRenderer;
+
+public function handle(ServerRequestInterface $request): ResponseInterface
+{
+    $html = $this->renderer->render(
+        page: 'admin/users',                     // 你的页面模板
+        data: ['rows' => $rows],
+        options: ['title' => '用户管理', 'nav' => 'users'],
+    );
+
+    return new HtmlResponse($html);
+}
+```
+
+就这样 —— 侧边栏、顶栏、页脚、面包屑、资源标签全部就位，菜单自动按 `nav` 高亮。
+**没有**布局文件要复制、**没有**资源要发布、**没有**菜单类要写。
+
+> 页面模板里如果有裸 `<table>`、裸 `<input>`、`.badge-*` 这类旧写法，
+> 包内的**兼容层**会自动把它们补齐成 Bootstrap 5 观感（默认开启，见下文
+> [兼容层](#兼容层-compat旧模板迁移不炸样式)）—— 这就是「接入后样式不错乱」的保障。
+
+---
+
+## 快速开始（完整参数版）
 
 ```php
 use AdminLte4\AdminLteRenderer;
@@ -159,7 +208,7 @@ $renderer->render(page: AdminLte4\Config::viewsPath() . '/examples/login.php',  
 | 键 | 类型 | 说明 |
 |---|---|---|
 | `title` | string | 页面标题（`<title>` 与页面头部大标题共用） |
-| `menu` | `Menu` | 侧边栏菜单 |
+| `menu` | `Menu`\|array | 侧边栏菜单；省略时自动取 params 的 `adminlte4.menu` |
 | `nav` | string | 要高亮的菜单项 `key` |
 | `path` | string | 当前请求路径；仅当没给 `nav` 时用于兜底匹配 |
 | `breadcrumbs` | array | `[['label' => 'x', 'url' => '/y'], ...]`（末项自动 active） |
@@ -174,10 +223,11 @@ $renderer->render(page: AdminLte4\Config::viewsPath() . '/examples/login.php',  
 | `bodyClass` | string | 追加到 `<body>` 的类名 |
 | `extraAssets` | string[] | **推荐**：应用自己的 `AssetBundle` 类名，在 AdminLTE 主包**之后**注册，可覆盖其同名规则 |
 | `extraCss` | string[] | 便捷追加的 CSS URL（不走资源包，仅用于快速打补丁） |
+| `compat` | bool | 是否注入旧模板兼容层，默认取 params 的 `adminlte4.compat`（默认 `true`） |
 
 ---
 
-## 资源来源：三套模式
+## 资源来源：四套模式
 
 后台资源全部经 `AssetUrlResolver` 解析，由 `params` 一个开关切换：
 
@@ -185,19 +235,27 @@ $renderer->render(page: AdminLte4\Config::viewsPath() . '/examples/login.php',  
 // 应用 config/common/params.php
 return [
     'adminlte4' => [
-        'cdn' => 'npmmirror',      // jsdelivr | npmmirror | local
+        // jsdelivr | jsdelivr-fastly | unpkg | local
+        'cdn' => 'local',
+        'assetsBaseUrl' => '/assets/vendor',
     ],
 ];
 ```
 
 | 模式 | 产出 URL 形态 | 适用 |
 |---|---|---|
-| `jsdelivr` | `https://cdn.jsdelivr.net/npm/admin-lte@4.9.1/...` | 官方默认、演示、海外 |
-| `npmmirror` | `https://registry.npmmirror.com/admin-lte/4.9.1/files/...` | **面向国内的生产环境推荐** |
-| `local` | `/assets/vendor/admin-lte/dist/css/adminlte.min.css` | 内网 / 完全自托管 |
+| `jsdelivr` | `https://cdn.jsdelivr.net/npm/admin-lte@4.9.1/...` | 默认、演示、海外 |
+| `jsdelivr-fastly` | `https://fastly.jsdelivr.net/npm/admin-lte@4.9.1/...` | jsdelivr 慢/不稳时的首选备选 |
+| `unpkg` | `https://unpkg.com/admin-lte@4.9.1/...` | 又一个备选源 |
+| `local` | `/assets/vendor/admin-lte/dist/css/adminlte.min.css` | **面向国内的生产环境推荐**；内网 / 自托管 |
 
 > **国内踩坑提示**：jsdelivr 在国内时有波动，症状是「页面结构正常、样式全丢、
-> 加载卡十几秒」。生产环境请优先用 `npmmirror` 或 `local`。
+> 加载卡十几秒」。**生产环境请直接用 `local`**（见下方一键脚本），彻底不依赖外网。
+
+> ⚠️ **曾经的 `npmmirror` 已移除**（2.1.0）。实测（2026-09）三种形态均取不到文件：
+> `registry.npmmirror.com/{pkg}/{ver}/files/...` → 403、
+> `cdn.npmmirror.com/{pkg}/{ver}/...` → 404、`npm.elemecdn.com/{pkg}@{ver}/...` → 404。
+> 保留一个「配了必然 403」的源，只会让人照文档切了源之后样式全丢 —— 故直接删除。
 
 ### `local` 模式：一键抓取固定版本
 
@@ -225,6 +283,45 @@ bash vendor/interview-treasure/yii3-adminlte4/resources/bin/fetch-assets.sh publ
 > ⚠️ 别只升 `admin-lte`。AdminLTE 各小版本对 Bootstrap 的 patch 版本有要求，
 > 混搭会出现「样式正常但交互组件失灵」这类难查的问题。
 
+## 兼容层 compat（旧模板迁移，不炸样式）
+
+迁移期最常见的情况是：**布局换成了 AdminLTE 4，页面模板还是旧写法** ——
+裸 `<table>`、裸 `<input>`/`<select>`、`.badge-*`、把 `.card` 当白底容器用……
+这些在 Bootstrap 5 下会掉样式，表现出来就是常说的「**引用后样式错乱**」。
+
+包内置了一份兼容层 CSS，把这些旧写法补齐成 Bootstrap 5 的观感：
+
+```php
+'adminlte4' => [
+    'compat' => true,     // 默认 true
+],
+```
+
+也可以按页临时开关：`$renderer->render($page, $data, ['compat' => false])`。
+
+| 它补什么 | 说明 |
+|---|---|
+| 表单控件 | 裸 `input`/`select`/`textarea` → `.form-control` / `.form-select` 观感（含 focus 描边） |
+| 表格 | 裸 `<table>` → 边框、表头底色、行 hover |
+| 按钮 | 裸 `.btn`（无颜色变体）→ 描边次要按钮观感，保证可辨识 |
+| 徽章 | `.badge-green/red/gray/blue/yellow` → 软色徽章 |
+| 卡片 | `.card` 补内边距；`a.card` 给 hover 反馈 |
+| 其它 | `.page-title`、`.filter-bar`、`.pager`、`.empty`、`.markdown-body`、登录页 `.field`/`.sub` |
+
+**作用域严格限定**在 `.app-content` 与 `.login-card-body` 内，不会影响侧边栏、
+顶栏的官方观感 —— 这是它能安全常开的前提。
+
+**为什么收在包里，而不是各项目自己写一份垫片？**
+垫片写在应用里 = 别的 yii3 项目引用本包时没有它，于是「同一个包，在不同项目里
+观感不一致」。收进包内后由包的版本统一维护，谁引用都一致。
+
+**实现细节**：它以 CSS 字符串内联进 `<head>`（约 8 KB），而不是发布成一个文件 ——
+走文件就要求应用「发布（publish）」包内资源到 web 目录，涉及 basePath/baseUrl/权限，
+是接入期最容易卡住的一步。生产若要浏览器缓存，把
+`resources/assets/compat.css` 复制到自己站点、关掉 `compat`、再用 `extraCss` 引用即可。
+
+---
+
 ### 可选：扩展调色板
 
 v4 把 `.bg-navy` 这类扩展色拆到了独立文件（主表只保留 Bootstrap 主题色）：
@@ -241,9 +338,30 @@ v4 把 `.bg-navy` 这类扩展色拆到了独立文件（主表只保留 Bootstr
 
 ## 菜单
 
-两种写法产出完全等价，可以混用。
+菜单有三个来源，**优先级从高到低**：
 
-### 数组式（推荐，便于放进配置文件）
+| 来源 | 用法 | 适用 |
+|---|---|---|
+| ① `options['menu']` | 每次 render 传 `Menu` 实例或数组 | 菜单要**按当前用户权限动态裁剪** |
+| ② params `adminlte4.menu` | 纯配置数组 | **静态菜单 —— 推荐**，零 PHP 代码 |
+| ③ 都没有 | 空菜单 | 只要布局不要侧栏的场景 |
+
+② 是「composer require + 写几行配置就能出后台」的关键：应用不必为了渲染菜单
+专门写一个适配层。配好之后，Action 里只要传 `nav`，菜单与高亮就自动有了。
+
+### 配置式（推荐）
+
+```php
+// 应用 config/params.php
+'adminlte4' => [
+    'menu' => [
+        ['label' => '概览', 'icon' => 'speedometer2', 'url' => '/admin', 'key' => 'dashboard'],
+        ['label' => '用户', 'icon' => 'people',       'url' => '/admin/users', 'key' => 'users'],
+    ],
+],
+```
+
+### 数组式
 
 ```php
 $menu = Menu::fromArray([

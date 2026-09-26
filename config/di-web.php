@@ -51,7 +51,7 @@ $adminLte4 = (array) ($params['adminlte4'] ?? []);
 
 return [
     // ------------------------------------------------------------
-    //  资源 URL 解析：jsdelivr / npmmirror / 自托管，由 params 决定
+    //  资源 URL 解析：jsdelivr / jsdelivr-fastly / unpkg / 自托管，由 params 决定
     // ------------------------------------------------------------
     AssetUrlResolver::class => static fn (): AssetUrlResolver => new AssetUrlResolver(
         (string) ($adminLte4['cdn'] ?? AssetUrlResolver::JSDELIVR),
