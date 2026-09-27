@@ -616,7 +616,25 @@ packages/yii3-adminlte4/
     ├── Menu/                      # MenuItem / Menu / MenuRenderer
     ├── Widget/                    # Widget / Card / Breadcrumbs / FlashAlerts
     └── Support/Html.php           # 转义与属性渲染
+└── tests/Unit/                    # 单元测试（39 tests / 69 assertions）
+    ├── Asset/AssetUrlResolverTest.php
+    ├── Menu/MenuTest.php
+    ├── Support/HtmlTest.php
+    └── ConfigTest.php
 ```
+
+---
+
+## 测试
+
+```bash
+composer install          # 装 dev 依赖（含 phpunit）
+composer test             # 跑 tests/Unit 全部用例
+```
+
+覆盖四个纯逻辑面：`AssetUrlResolver`（四套 CDN 模板 + 版本回落 + 异常）、
+`Menu`（构建 + 高亮 + 不可变性）、`Html`（**转义引号**的 XSS 回归 + 属性/类名渲染）、
+`Config`（默认版本表完整性）。
 
 ---
 

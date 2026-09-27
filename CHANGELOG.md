@@ -28,6 +28,14 @@
 
 - 新增 CDN 提供方 `jsdelivr-fastly` 与 `unpkg`。
 
+- **补上单元测试**（`tests/Unit/`，39 tests / 69 assertions）
+  - `AssetUrlResolver`：四种提供方模板、版本号回落与异常、local 模式、路径规整。
+  - `Menu` / `MenuItem`：数组构建、分组/子菜单递归、key/路径高亮、
+    无前缀匹配、父项随子项点亮、不可变性。
+  - `Html`：**转义引号**（XSS 回归）、`attributes` 条件渲染、`classes`、`icon`。
+  - `Config`：默认版本表完整性、包根路径。
+  - 跑法：`composer test`（需先 `composer install` 装 dev 依赖）。
+
 ### 修复
 
 - **移除已失效的 `npmmirror` 提供方**（⚠️ 常量 `AssetUrlResolver::NPMMIRROR` 已删除）
