@@ -61,14 +61,17 @@ final class AssetUrlResolver
     ];
 
     /**
-     * @param string               $provider     资源提供方，见上面的常量
-     * @param string               $localBaseUrl provider = local 时的资源根 URL
-     * @param array<string,string> $versions     npm 包名 => 版本号，缺省回落到 Config::DEFAULT_VERSIONS
+     * @param string               $provider      资源提供方，见上面的常量
+     * @param string               $localBaseUrl  provider = local 时的资源根 URL
+     * @param array<string,string> $versions      npm 包名 => 版本号，缺省回落到 Config::DEFAULT_VERSIONS
+     * @param string               $localBasePath provider = local 时，把包内资源「发布」到的目标目录别名
+     *                                            （用于 yiisoft/assets 的 AssetPublisher）
      */
     public function __construct(
         private readonly string $provider = self::JSDELIVR,
         private readonly string $localBaseUrl = '/assets/vendor',
         private readonly array $versions = [],
+        private readonly string $localBasePath = '@public/assets/vendor',
     ) {
         if (!in_array($this->provider, self::PROVIDERS, true)) {
             throw new InvalidArgumentException(sprintf(
@@ -87,6 +90,33 @@ final class AssetUrlResolver
     public function isLocal(): bool
     {
         return $this->provider === self::LOCAL;
+    }
+
+    /**
+     * 本地（自托管）模式下，某个 npm 包资源在**包内**的根目录。
+     *
+     * 包自带资源文件（resources/assets/vendor/），自托管时由 AssetPublisher
+     * 从该目录发布到应用的 public/ 下，从而实现「离线可用、不依赖外网 CDN」。
+     */
+    public function localSourcePath(string $package): string
+    {
+        return Config::rootPath() . '/resources/assets/vendor/' . $package;
+    }
+
+    /**
+     * 自托管模式下，资源被发布到的**目录别名**（如 '@public/assets/vendor'）。
+     */
+    public function localBasePath(): string
+    {
+        return $this->localBasePath;
+    }
+
+    /**
+     * 自托管模式下，资源被发布后的**根 URL**（如 '/assets/vendor'）。
+     */
+    public function localBaseUrl(): string
+    {
+        return $this->localBaseUrl;
     }
 
     /**

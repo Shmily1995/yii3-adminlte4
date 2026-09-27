@@ -245,7 +245,8 @@ return [
     'adminlte4' => [
         // jsdelivr | jsdelivr-fastly | unpkg | local
         'cdn' => 'local',
-        'assetsBaseUrl' => '/assets/vendor',
+        'assetsBaseUrl' => '/assets/vendor',        // 对外访问路径
+        'assetsBasePath' => '@public/assets/vendor', // 发布目标目录（别名）
     ],
 ];
 ```
@@ -255,24 +256,48 @@ return [
 | `jsdelivr` | `https://cdn.jsdelivr.net/npm/admin-lte@4.9.1/...` | 默认、演示、海外 |
 | `jsdelivr-fastly` | `https://fastly.jsdelivr.net/npm/admin-lte@4.9.1/...` | jsdelivr 慢/不稳时的首选备选 |
 | `unpkg` | `https://unpkg.com/admin-lte@4.9.1/...` | 又一个备选源 |
-| `local` | `/assets/vendor/admin-lte/dist/css/adminlte.min.css` | **面向国内的生产环境推荐**；内网 / 自托管 |
+| `local` | `/assets/vendor/a1b2c3d4/dist/css/adminlte.min.css` | **面向国内的生产环境推荐**；内网 / 离线 |
 
 > **国内踩坑提示**：jsdelivr 在国内时有波动，症状是「页面结构正常、样式全丢、
-> 加载卡十几秒」。**生产环境请直接用 `local`**（见下方一键脚本），彻底不依赖外网。
+> 加载卡十几秒」。**生产环境请直接用 `local`**，彻底不依赖外网。
 
 > ⚠️ **曾经的 `npmmirror` 已移除**（2.1.0）。实测（2026-09）三种形态均取不到文件：
 > `registry.npmmirror.com/{pkg}/{ver}/files/...` → 403、
 > `cdn.npmmirror.com/{pkg}/{ver}/...` → 404、`npm.elemecdn.com/{pkg}@{ver}/...` → 404。
 > 保留一个「配了必然 403」的源，只会让人照文档切了源之后样式全丢 —— 故直接删除。
 
-### `local` 模式：一键抓取固定版本
+### `local` 模式（2.2 起）：零配置，包自带资源
 
-```bash
-bash vendor/interview-treasure/yii3-adminlte4/resources/bin/fetch-assets.sh public/assets/vendor
+**本包已经内置全部资源**（`resources/assets/vendor/`，约 940 KB）。
+所以 `'cdn' => 'local'` 之后**不需要你做任何事**：
+
+1. 首次渲染时，官方 `yiisoft/assets` 的 `AssetPublisher` 会把包内资源
+   拷贝到 `@public/assets/vendor/<crc32>/`；
+2. `AssetManager` 自动回填真实 `[basePath, baseUrl]`；
+3. 页面输出 `/assets/vendor/<crc32>/...` 形式的 URL。
+
+```
+backend/public/assets/vendor/
+├── 75a1218d/dist/css/adminlte.min.css
+├── 9d30e28b/font/bootstrap-icons.min.css
+│                   └── fonts/bootstrap-icons.woff2   ← 字体相对路径一并保留
+└── ...
 ```
 
-脚本会把 AdminLTE 4 及其依赖的**固定版本**文件按
-`{目标目录}/{npm 包名}/{包内路径}` 放好，正好是 `local` 模式期望的目录约定。
+**关键性质**
+
+- **不需要跑脚本**、不需要手动拷贝、不需要把 `vendor/` 暴露为 web 根。
+- **换版本自动生效**：`crc32` 子目录名由内容决定，内容变了就发布到新目录，
+  天然避开浏览器与 CDN 缓存。
+- 生产环境（Nginx）同样适用 —— 只要 `@public` 指向真实的 DocumentRoot。
+
+> **`fetch-assets.sh` 现在只给包作者用**（升级依赖版本时重新抓文件进包内）。
+> 应用方正常情况下永远不需要执行它。
+
+```bash
+# 仅包作者：把 Config::DEFAULT_VERSIONS 对应版本重新抓进包内
+bash vendor/interview-treasure/yii3-adminlte4/resources/bin/fetch-assets.sh
+```
 
 ### 版本升级改哪里
 
@@ -290,6 +315,43 @@ bash vendor/interview-treasure/yii3-adminlte4/resources/bin/fetch-assets.sh publ
 
 > ⚠️ 别只升 `admin-lte`。AdminLTE 各小版本对 Bootstrap 的 patch 版本有要求，
 > 混搭会出现「样式正常但交互组件失灵」这类难查的问题。
+
+> ⚠️ `versions` 只影响 **CDN 模式**的 URL 版本号。自托管模式用的是包内已含的
+> 那批文件；要换自托管版本，必须同步包内 `resources/assets/vendor/`（见上）。
+
+## 与 `yiisoft/yii-view-renderer` 配合（2.2 起）
+
+若你的应用用官方 `ViewRenderer`，本包提供现成的注入实现，
+**DI 里注册即生效**，不需要在应用里写注入代码：
+
+```php
+// 应用 config/web/di/*.php
+use AdminLte4\Injection\AdminLteInjection;
+
+return [
+    AdminLteInjection::class => static fn (): AdminLteInjection => new AdminLteInjection([
+        'brand'   => '面试宝典',
+        'home'    => '概览',
+        'homeUrl' => '/admin',
+        'menu'    => [/* ... */],
+    ]),
+];
+```
+
+它同时实现两个官方接口：
+
+| 官方接口 | 注入的变量 |
+|---|---|
+| `CommonParametersInjectionInterface` | `$brand`、`$home`、`$homeUrl`、`$menu` |
+| `LayoutParametersInjectionInterface` | `$bodyClass`、`$sidebarDark`、`$fixedHeader`、`$scrollToTop` |
+
+> 🔴 **红线：它不处理 CSRF。**
+> 官方 `CsrfViewInjection` 依赖 `yiisoft/csrf`，其「单 token 存 session」
+> 与「按 jti 隔离 + 每次渲染重签发」的自研实现语义不同。
+> 用本包的注入时，CSRF 仍由你自己的中间件负责 —— 不要两套并用。
+
+> ⚠️ 引入 `yiisoft/yii-view-renderer` 会连带装上 `yiisoft/csrf` 与
+> `yiisoft/data-response`（官方硬依赖）。本包不使用它们。
 
 ## 兼容层 compat（旧模板迁移，不炸样式）
 
@@ -582,14 +644,28 @@ AdminLTE 4 的 `adminlte.min.css` **已经内含 Bootstrap 的样式**。
 
 本包额外提供的、官方不管的两件事：
 
-1. **三套 URL 解析**（`AssetUrlResolver`）：jsdelivr / npmmirror / 自托管，
-   一个 params 开关切换。官方只管「发布本地文件」，不提供 CDN 提供方切换；
+1. **四套 URL 解析 + 双模式资源包**（`AssetUrlResolver` + `LocalizableAsset`）：
+   jsdelivr / jsdelivr-fastly / unpkg / 自托管，一个 params 开关切换。
+   官方只管「发布本地文件」，不提供 CDN 提供方切换；
 2. **布局与菜单**：`yiisoft/view` 没有 layout 概念，这部分仍由本包补齐。
+
+**2.2 起，双模式收敛到一个基类** —— 六个资源包类只需声明 `package()` /
+`cssPaths()` / `jsPaths()`，`LocalizableAsset` 按 `isLocal()` 决定：
+
+| 模式 | `$cdn` | `$css` / `$js` | `$sourcePath` | `basePath`/`baseUrl` |
+|---|---|---|---|---|
+| CDN | `true` | **完整 URL**（解析器生成） | 不设 | 不设 |
+| 自托管 | `false` | **相对路径**（如 `dist/css/adminlte.min.css`） | 指向包内 | 发布目标，由 Publisher 回填 |
 
 > ⚠️ 本包**刻意不在** `di-web` 里声明 `AssetManager` / `AssetLoaderInterface` 这两个 DI 键 ——
 > 因为 `yiisoft/assets` 自己已经贡献了同名定义，Yii3 禁止同一配置层出现重复键
 > （会抛 `Duplicate key ... while building web group`）。
 > 本包改为在 `AdminLteRenderer` 的工厂里自建一个带资源包实例的 AssetManager。
+
+> ⚠️⚠️ **自托管时必须给 `AssetManager` 装 `AssetPublisher`**（本包已内置该逻辑）：
+> `$cdn = false` + `$sourcePath` 的资源包若没有 Publisher，就不会被发布到 `public/`，
+> 官方 loader 会拿相对路径做 `is_file()` 检查并**静默跳过** ——
+> 症状是「页面 200、HTML 结构正常、CSS/JS 一个都不输出」。
 
 ---
 
@@ -602,7 +678,15 @@ packages/yii3-adminlte4/
 │   ├── params.php                 # 包参数（应用可按递归合并只覆盖某一项）
 │   └── di-web.php                 # 服务定义（Web 专属）
 ├── resources/
-│   ├── bin/fetch-assets.sh        # local 模式：抓取固定版本资源
+│   ├── assets/
+│   │   ├── compat.css             # 兼容层（内联进 <head>）
+│   │   └── vendor/                # ★ 包自带的 AdminLTE 4 全部资源（约 940 KB）
+│   │       ├── admin-lte/         #   CSS + colors + JS
+│   │       ├── bootstrap/         #   仅 JS（CSS 已内含在 adminlte.min.css）
+│   │       ├── bootstrap-icons/   #   CSS + woff/woff2 字体
+│   │       ├── overlayscrollbars/
+│   │       └── @popperjs/core/
+│   ├── bin/fetch-assets.sh        # 包作者升级依赖时用（应用方不需要）
 │   └── views/
 │       ├── layout.php             # 主布局
 │       ├── login-layout.php       # 登录布局
@@ -612,12 +696,14 @@ packages/yii3-adminlte4/
     ├── AdminLteRenderer.php       # 主入口：资源 + 页面 + 布局 + 占位符替换
     ├── Config.php                 # 版本表与路径
     ├── Layout.php                 # 布局解析（绝对路径 / 逻辑名）
-    ├── Asset/                     # AssetBundle 抽象 / URL 解析 / 注册器 / 6 个具体包
+    ├── Injection/                 # AdminLteInjection（对接官方 yii-view-renderer）
+    ├── Asset/                     # LocalizableAsset 抽象 + AssetUrlResolver + 6 个资源包
     ├── Menu/                      # MenuItem / Menu / MenuRenderer
     ├── Widget/                    # Widget / Card / Breadcrumbs / FlashAlerts
     └── Support/Html.php           # 转义与属性渲染
-└── tests/Unit/                    # 单元测试（39 tests / 69 assertions）
+└── tests/Unit/                    # 单元测试（43 tests / 81 assertions）
     ├── Asset/AssetUrlResolverTest.php
+    ├── Injection/AdminLteInjectionTest.php
     ├── Menu/MenuTest.php
     ├── Support/HtmlTest.php
     └── ConfigTest.php
@@ -632,9 +718,18 @@ composer install          # 装 dev 依赖（含 phpunit）
 composer test             # 跑 tests/Unit 全部用例
 ```
 
-覆盖四个纯逻辑面：`AssetUrlResolver`（四套 CDN 模板 + 版本回落 + 异常）、
+覆盖五个纯逻辑面：`AssetUrlResolver`（四套 CDN 模板 + 版本回落 + 异常 + local）、
 `Menu`（构建 + 高亮 + 不可变性）、`Html`（**转义引号**的 XSS 回归 + 属性/类名渲染）、
-`Config`（默认版本表完整性）。
+`Config`（默认版本表完整性）、`AdminLteInjection`（两个官方接口 + 参数取值）。
+
+> **包目录里没有 `vendor/` 时怎么跑？** 借宿主的 phpunit 即可：
+> ```bash
+> # 在宿主项目根（已 composer install）
+> php vendor/bin/phpunit --no-configuration --bootstrap vendor/autoload.php ../packages/yii3-adminlte4/tests
+> ```
+> 注意：path 仓库若是 `symlink: false`（镜像复制），改了包内代码后必须
+> `composer reinstall interview-treasure/yii3-adminlte4`，
+> 否则测试跑的是 `vendor/` 里的旧副本。
 
 ---
 
@@ -644,7 +739,7 @@ composer test             # 跑 tests/Unit 全部用例
 2. **抽公共壳**：把「顶栏 / 侧边栏的 HTML」换成 `menu` + 布局参数，
    业务页面模板基本不用改（`$e` / `$title` / `$nav` / `$flash` 的命名刻意保持一致）。
 3. **逐个页面切换**：一次一个页面，随时可回滚。
-4. **最后删旧布局**。
+4. **最后删旧布局**：本包自带布局模板，应用侧的旧布局文件可以直接删。
 
 ---
 
@@ -652,6 +747,6 @@ composer test             # 跑 tests/Unit 全部用例
 
 MIT。见 [LICENSE](LICENSE)。
 
-本包**不打包也不分发** AdminLTE / Bootstrap 的任何资源文件 ——
-它只注册它们的 CDN URL，或指向你自己托管的文件。
-AdminLTE 与 Bootstrap 均为 MIT 许可，版权归各自作者所有。
+本包**内含** AdminLTE / Bootstrap / Bootstrap Icons / OverlayScrollbars / Popper
+的固定版本资源文件（`resources/assets/vendor/`），仅为「离线可用 / 自托管」提供便利，
+不修改其内容。以上项目均为 MIT 许可，版权归各自作者所有。

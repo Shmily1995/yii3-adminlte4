@@ -1,38 +1,41 @@
 #!/usr/bin/env bash
 #
 # ============================================================
-#  AdminLTE 4 资源本地化脚本
+#  AdminLTE 4 资源同步脚本（维护包作者用）
 # ============================================================
 #
-# 【用途】
-#   把 AdminLTE 4 及其依赖的**固定版本**下载到指定目录，
-#   供 params 里 `'cdn' => 'local'` 模式使用。
+# 【这个脚本现在什么时候用】
+#   ⚠️ 本包**已经自带**全部资源（resources/assets/vendor/，约 940 KB），
+#      应用侧只需要 `'cdn' => 'local'`，**不需要**跑这个脚本 ——
+#      yiisoft/assets 的 AssetPublisher 会在首次渲染时自动发布。
 #
-# 【什么时候需要它】
-#   · 生产环境在内网 / 不方便访问外网 CDN
-#   · 不想依赖 jsdelivr 的可用性（国内波动较大）
+#   本脚本的唯一用途是：**包作者要把依赖升级到新版本时**，
+#   用它把新版本文件重新抓进包内 resources/assets/vendor/。
 #
 # 【用法】
-#   bash resources/bin/fetch-assets.sh [目标目录]
-#
-#   目标目录默认 public/assets/vendor，正对应
-#   params 的 adminlte4.assetsBaseUrl 默认值 '/assets/vendor'。
-#
-# 【产出的目录约定】
-#   {目标目录}/{npm 包名}/{包内路径}
-#     例：public/assets/vendor/admin-lte/dist/css/adminlte.min.css
-#         public/assets/vendor/@popperjs/core/dist/umd/popper.min.js
+#   bash resources/bin/fetch-assets.sh                    # 默认写入包内 resources/assets/vendor
+#   bash resources/bin/fetch-assets.sh /tmp/out           # 或写到任意目录做对比检查
 #
 # 【版本来源】
-#   与 src/Config.php 的 DEFAULT_VERSIONS 保持一致 ——
-#   升级时两处都要改（或设 ADMINLTE4_CDN_BASE 指向你自己的镜像）。
+#   与 src/Config.php 的 DEFAULT_VERSIONS **必须一致**。
+#   升级流程：改 Config::DEFAULT_VERSIONS 的版本号 → 跑本脚本 → 提交包。
+#
+# 【路径形态为什么是 @ 而不是 /files/】
+#   早年这里提示过 npmmirror 作为国内兜底，但 2026-09 实测其三种域名
+#   （registry.npmmirror.com / cdn.npmmirror.com / npm.elemecdn.com）
+#   对 admin-lte 4.9.1 全部返回 403/404，已不可用，故删除该建议。
+#   若你需要内网镜像，自行设 ADMINLTE4_CDN_BASE 并保证其路径形态为
+#   {BASE}/{包}@{版本}/{文件路径}。
 #
 set -euo pipefail
 
-TARGET="${1:-public/assets/vendor}"
+# 默认写入**包内**资源目录（与 Config::rootPath() . '/resources/assets/vendor' 对应）
+PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TARGET="${1:-$PKG_ROOT/resources/assets/vendor}"
 BASE="${ADMINLTE4_CDN_BASE:-https://cdn.jsdelivr.net/npm}"
 
 # 包名|版本|文件路径（相对包根）
+# ⚠️ 改这里的同时必须同步 src/Config.php 的 DEFAULT_VERSIONS
 FILES=(
     "admin-lte|4.9.1|dist/css/adminlte.min.css"
     "admin-lte|4.9.1|dist/css/adminlte-colors.css"
@@ -76,12 +79,10 @@ echo
 echo "完成：成功 $ok 个，失败 $fail 个"
 
 if [ "$fail" -gt 0 ]; then
-    echo "有文件下载失败。可尝试用国内镜像重跑："
-    echo "  ADMINLTE4_CDN_BASE=https://registry.npmmirror.com bash $0 $TARGET"
-    echo "（注意 npmmirror 的路径形态是 /{包}/{版本}/files/{路径}，与本脚本的 @ 形态不同，"
-    echo "  如需使用请调整 BASE 拼接方式。）"
+    echo "有文件下载失败。可换源重试（路径形态须为 {BASE}/{包}@{版本}/{文件路径}）："
+    echo "  ADMINLTE4_CDN_BASE=https://unpkg.com bash $0 $TARGET"
     exit 1
 fi
 
-echo "接着在应用 params 里设置："
-echo "  'adminlte4' => ['cdn' => 'local', 'assetsBaseUrl' => '/assets/vendor']"
+echo
+echo "完成。若资源有更新，别忘了同步 src/Config.php 的 DEFAULT_VERSIONS 与 CHANGELOG。"

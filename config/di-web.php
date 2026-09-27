@@ -35,11 +35,13 @@ use AdminLte4\Asset\Bootstrap5Asset;
 use AdminLte4\Asset\BootstrapIconsAsset;
 use AdminLte4\Asset\OverlayScrollbarsAsset;
 use AdminLte4\Asset\PopperAsset;
+use AdminLte4\Injection\AdminLteInjection;
 use AdminLte4\Menu\MenuRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\AssetLoader;
 use Yiisoft\Assets\AssetLoaderInterface;
 use Yiisoft\Assets\AssetManager;
+use Yiisoft\Assets\AssetPublisher;
 use Yiisoft\View\WebView;
 
 /** @var array $params */
@@ -57,7 +59,16 @@ return [
         (string) ($adminLte4['cdn'] ?? AssetUrlResolver::JSDELIVR),
         (string) ($adminLte4['assetsBaseUrl'] ?? '/assets/vendor'),
         (array) ($adminLte4['versions'] ?? []),
+        (string) ($adminLte4['assetsBasePath'] ?? '@public/assets/vendor'),
     ),
+
+    // ------------------------------------------------------------
+    //  公共参数注入（配合官方 yiisoft/yii-view-renderer 使用）
+    //  用 ViewRenderer + 自定义布局时，把本类加进 DI 即自动注入
+    //  $brand / $menu / $home / $homeUrl / $bodyClass 等公共变量。
+    //  ⚠️ 不处理 CSRF —— 本项目自研的 CSRF 仍由应用中间件负责。
+    // ------------------------------------------------------------
+    AdminLteInjection::class => static fn (): AdminLteInjection => new AdminLteInjection($adminLte4),
 
     // ------------------------------------------------------------
     //  页面渲染器（包的主入口）
@@ -85,6 +96,14 @@ return [
     //     而不是包内新建一个 —— 只有这样，页面模板里注册的资源
     //     才能和布局里的 $this->head() 落在同一个视图状态上。
     //     自己 new 一个会得到「样式标签永远为空」的诡异结果。
+    //
+    //  ⚠️⚠️ 自托管（cdn = local）时**必须**给 AssetManager 装上 Publisher，
+    //     否则 `$cdn = false` + `$sourcePath` 的资源包不会被发布到 public/，
+    //     官方 loader 会拿相对路径去做 is_file() 检查并静默跳过，
+    //     表现为「页面 200、HTML 结构正常、但 CSS/JS 一个都不输出」。
+    //     withPublisher() 是可变设置（官方默认 null），在构造后调用即可。
+    //     publisher 的 forceCopy 保持官方默认 false：靠 basePath 里的
+    //     crc32 子目录换名，内容变了自然发布到新目录，不会读到旧缓存。
     AdminLteRenderer::class => static function (
         WebView $view,
         Aliases $aliases,
@@ -105,6 +124,10 @@ return [
                 AdminLte4ColorsAsset::class => new AdminLte4ColorsAsset($urls),
             ],
         );
+
+        if ($urls->isLocal()) {
+            $assetManager = $assetManager->withPublisher(new AssetPublisher($aliases));
+        }
 
         return new AdminLteRenderer($view, $assetManager, $menuRenderer, $adminLte4);
     },

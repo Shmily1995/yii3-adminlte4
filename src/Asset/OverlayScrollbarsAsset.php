@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace AdminLte4\Asset;
 
-use Yiisoft\Assets\AssetBundle;
-
 /**
  * ============================================================
  *  OverlayScrollbars 资源包 —— AdminLte4\Asset\OverlayScrollbarsAsset
@@ -14,17 +12,20 @@ use Yiisoft\Assets\AssetBundle;
  * AdminLTE 4 用它替换了 v3 的 jQuery 滚动条插件，
  * 负责侧边栏的自定义滚动（无 jQuery 依赖）。
  */
-final class OverlayScrollbarsAsset extends AssetBundle
+final class OverlayScrollbarsAsset extends LocalizableAsset
 {
-    public bool $cdn = true;
-
-    public array $depends = [];
-
-    public function __construct(?AssetUrlResolver $urls = null)
+    protected function package(): string
     {
-        $urls ??= new AssetUrlResolver();
+        return 'overlayscrollbars';
+    }
 
-        $this->css = [$urls->url('overlayscrollbars', 'styles/overlayscrollbars.min.css')];
-        $this->js = [$urls->url('overlayscrollbars', 'browser/overlayscrollbars.browser.es6.min.js')];
+    protected function cssPaths(): array
+    {
+        return ['styles/overlayscrollbars.min.css'];
+    }
+
+    protected function jsPaths(): array
+    {
+        return ['browser/overlayscrollbars.browser.es6.min.js'];
     }
 }

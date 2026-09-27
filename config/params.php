@@ -76,22 +76,34 @@ return [
         //   · jsdelivr        官方默认，全球可用
         //   · jsdelivr-fastly jsdelivr 的 fastly 节点，国内通常更快
         //   · unpkg           备选源
-        //   · local           完全自托管，走 assetsBaseUrl，不依赖外网
+        //   · local           完全自托管：直接用**包内自带**的固定版本资源，
+        //                     由 yiisoft/assets 的 AssetPublisher 发布到
+        //                     assetsBasePath 并生成 assetsBaseUrl 下的 URL。
+        //                     装完包即离线可用，不需要应用手动下载任何文件
+        //                     （包内 resources/assets/vendor/ 已内置 5 个 npm 包）。
         //
         // ⚠️ 实测（2026-09）：曾经提供的 npmmirror 两种 URL 形态均已失效
         //    （registry.npmmirror.com/{pkg}/{ver}/files/... → 403，
         //     cdn.npmmirror.com/{pkg}/{ver}/... → 404），已从可选值中移除，
         //    避免「照文档切国内源 → 样式全丢」。
-        //    面向国内的生产环境请优先用 local（见 resources/bin/fetch-assets.sh）。
+        //    面向国内的生产环境请优先用 local。
         // ------------------------------------------------------------
         'cdn' => AssetUrlResolver::JSDELIVR,
 
-        // cdn = local 时的资源根 URL。
+        // cdn = local 时的资源根 URL（发布后的**对外访问路径**）。
         // 目录约定：{assetsBaseUrl}/{npm 包名}/{文件路径}
         //   例：/assets/vendor/admin-lte/dist/css/adminlte.min.css
         //       /assets/vendor/@popperjs/core/dist/umd/popper.min.js
-        // 用 resources/bin/fetch-assets.sh 可一键把固定版本下载到该目录。
+        //
+        // ⚠️ 这里的路径带 crc32 子目录吗？不带 —— 子目录由 AssetPublisher
+        //    在发布时自动插到 assetsBasePath 之下，URL 由它回填，无需手配。
         'assetsBaseUrl' => '/assets/vendor',
+
+        // cdn = local 时，把包内资源「发布」到的**目标目录**（用 Yii 别名表达）。
+        // 默认 '@public/assets/vendor'，即应用的 public/ 下 —— 这是 web
+        // 服务器可直接访问、且不暴露 vendor/ 的方式。
+        // 仅当你的 public 目录有别名差异时才需要覆盖。
+        'assetsBasePath' => '@public/assets/vendor',
 
         // ------------------------------------------------------------
         // 各依赖的版本号（升级时逐个核对，别只升 admin-lte）

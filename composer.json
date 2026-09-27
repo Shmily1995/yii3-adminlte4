@@ -18,13 +18,11 @@
         "yiisoft/aliases": "^2.0 || ^3.0",
         "yiisoft/assets": "^5.0",
         "yiisoft/view": "^12.0",
-        "yiisoft/widget": "^2.0"
+        "yiisoft/widget": "^2.0",
+        "yiisoft/yii-view-renderer": "^7.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
-    },
-    "suggest": {
-        "yiisoft/yii-view-renderer": "可选：安装后可启用 AdminLte4\\Injection\\AdminLteInjection 视图注入（替代手动传参）"
     },
     "autoload": {
         "psr-4": {

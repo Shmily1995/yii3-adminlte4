@@ -18,7 +18,7 @@ final class Config
      * 本包自身的版本号（便于调试时确认加载的是哪一版）。
      * 与 composer.json 的 version 字段无强绑定，升级时同步维护即可。
      */
-    public const PACKAGE_VERSION = '2.1.0';
+    public const PACKAGE_VERSION = '2.2.0';
 
     /**
      * 默认依赖版本 —— 逐项取自 AdminLTE 4 官方文档的 CDN 安装片段。

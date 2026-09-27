@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace AdminLte4\Asset;
 
-use Yiisoft\Assets\AssetBundle;
-
 /**
  * ============================================================
  *  Bootstrap 5 资源包 —— AdminLte4\Asset\Bootstrap5Asset
@@ -18,19 +16,19 @@ use Yiisoft\Assets\AssetBundle;
  * 若在这里再引一份 bootstrap.min.css，页面会存在两套重复的 Bootstrap 规则，
  * 表现为「改了 Bootstrap 变量不生效 / 样式互相打架」这类极难定位的问题。
  */
-final class Bootstrap5Asset extends AssetBundle
+final class Bootstrap5Asset extends LocalizableAsset
 {
-    public bool $cdn = true;
-
     public array $depends = [
         PopperAsset::class,
     ];
 
-    public function __construct(?AssetUrlResolver $urls = null)
+    protected function package(): string
     {
-        $urls ??= new AssetUrlResolver();
+        return 'bootstrap';
+    }
 
-        $this->css = [];
-        $this->js = [$urls->url('bootstrap', 'dist/js/bootstrap.min.js')];
+    protected function jsPaths(): array
+    {
+        return ['dist/js/bootstrap.min.js'];
     }
 }

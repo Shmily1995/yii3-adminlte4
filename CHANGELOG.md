@@ -2,6 +2,54 @@
 
 本包遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.0] - 2026-09-27
+
+把「自托管」从「一次性文档说明」变成**开箱即用的包能力**：包自带全部资源文件，
+并接入官方 `yiisoft/yii-view-renderer` 的注入接口。
+
+### 新增
+
+- **包自带 AdminLTE 4 全部资源**（`resources/assets/vendor/`，约 940 KB，10 个文件）
+  - `admin-lte` 4.9.1（CSS + colors + JS）、`bootstrap` 5.3.8（仅 JS）、
+    `bootstrap-icons` 1.13.1（CSS + woff/woff2 字体）、
+    `overlayscrollbars` 2.11.0（CSS + JS）、`@popperjs/core` 2.11.8。
+  - 于是 `'cdn' => 'local'` 之后**离线可用**，应用侧不需要跑任何下载/拷贝脚本。
+    （此前 `local` 只是个「约定」：要求用户自己用 `fetch-assets.sh` 把文件
+    放进 public/，漏做就变成「样式全丢」。）
+
+- **`LocalizableAsset` 抽象基类** —— 把「CDN / 自托管」两条模式收敛到一处。
+  - 六个资源包类（`AdminLte4Asset` / `AdminLte4ColorsAsset` / `Bootstrap5Asset` /
+    `BootstrapIconsAsset` / `OverlayScrollbarsAsset` / `PopperAsset`）现在只声明三件事：
+    `package()` / `cssPaths()` / `jsPaths()`，不再各自写构造逻辑。
+  - 自托管分支设 `$cdn = false` + `$sourcePath`（指向包内资源），
+    由官方 `AssetPublisher` 发布并回填 `[basePath, baseUrl]`。
+
+- **接入 `yiisoft/yii-view-renderer`**（`^7.0`）
+  - 新增 `AdminLte4\Injection\AdminLteInjection`，实现官方
+    `CommonParametersInjectionInterface` + `LayoutParametersInjectionInterface`，
+    把 `$brand` / `$home` / `$homeUrl` / `$menu` / `$bodyClass` / `$sidebarDark` /
+    `$fixedHeader` / `$scrollToTop` 注入视图。
+  - 在 `config/di-web.php` 注册；使用 `ViewRenderer` 时 DI 自动生效，
+    不需要应用写任何注入代码。
+
+- 新增 params 键 `assetsBasePath`（默认 `@public/assets/vendor`）——
+  自托管资源的**发布目标目录**别名。
+
+### 变更
+
+- `resources/bin/fetch-assets.sh` 语义变更：从「应用侧下载工具」变成
+  **包作者升级依赖时的同步工具**，默认写入包内 `resources/assets/vendor`。
+- 脚本内移除 npmmirror 兜底提示（该源已实测失效），改提示 `unpkg`。
+
+### 说明（红线）
+
+- **`AdminLteInjection` 不处理 CSRF。** 官方 `CsrfViewInjection` 与
+  「按 jti 隔离 + 每次渲染重签发」的自研实现语义不同，CSRF 仍由应用中间件负责。
+- `yiisoft/yii-view-renderer` 会**连带引入** `yiisoft/csrf` 与
+  `yiisoft/data-response`（官方硬依赖）。本包不使用它们，只是依赖树里多出这两个包。
+
+---
+
 ## [2.1.0] - 2026-09-27
 
 解决「接入后样式错乱」，并把接入成本降到「装包 + 写几行配置」。
