@@ -120,6 +120,14 @@ grep -A3 "'interview-treasure/yii3-adminlte4'" config/.merge-plan.php
 composer require interview-treasure/yii3-adminlte4
 ```
 
+> 国内网络若慢，请在**你自己的项目**里配全局镜像 ——
+> 本包故意**不**自带任何镜像源（依赖包里的 `repositories` 按 Composer 规范不会被加载，
+> 写了也无效）：
+>
+> ```bash
+> composer config -g repos.packagist composer https://mirrors.cloud.tencent.com/composer/
+> ```
+
 **第 2 步** 写配置（`config/params.php`）—— **站点名和菜单都在这里，不用写 PHP**：
 
 ```php

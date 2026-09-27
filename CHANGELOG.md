@@ -38,6 +38,18 @@
     或（生产推荐）用 `local` + `resources/bin/fetch-assets.sh` 自托管。
 - URL 生成改为模板表（`TEMPLATES`），新增提供方只需加一行。
 
+### 变更
+
+- **移除 `composer.json` 里的腾讯 Composer 镜像**（此前把第三方下拉保护的 `repositories`
+  块写进了本包：`mirrors.cloud.tencent.com` + `{ "packagist.org": false }`）。
+  - 公开发布的库不该自带私有镜像，且 packagist.org 被禁用对海外用户不友好。
+  - **对使用方零影响**：Composer 官方行为是
+    「Repositories are only available to the root package and the repositories
+    defined in your dependencies will not be loaded」——
+    依赖包里的 `repositories` 本来就不会被加载，删掉只是卫生清理。
+  - 需要加速的同学请在**自己的项目**里配全局镜像：
+    `composer config -g repos.packagist composer https://mirrors.cloud.tencent.com/composer/`
+
 ### 文档
 
 - README 新增「最小接入：3 步就能出一个后台」与「兼容层」章节；

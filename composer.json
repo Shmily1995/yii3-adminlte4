@@ -55,14 +55,5 @@
         "test": "phpunit --no-coverage"
     },
     "minimum-stability": "stable",
-    "prefer-stable": true,
-    "repositories": [
-        {
-            "type": "composer",
-            "url": "https://mirrors.cloud.tencent.com/repository/composer/"
-        },
-        {
-            "packagist.org": false
-        }
-    ]
+    "prefer-stable": true
 }
